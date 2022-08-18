@@ -3,16 +3,16 @@ from tkinter.ttk import *
 from tkinter.messagebox import *
 from ttkthemes import ThemedTk
 import easygui as eg
+import webbrowser
 import os
 
 def showongithub():
-    pass
+    webbrowser.open("https://github.com/TheRealPenguin12/Editt")
 def reportissue():
     issue_type = eg.choicebox("Which best identifies your issue", "Issue", ["bug", "enhancement", "feature request"])
     issue_labels = eg.multchoicebox("Which labels best identify your issue", "Issue", ["bug", "documentation", "duplicate", "enhancement", "good first issue", "help wanted", "invalid", "question", "wontfix"])
     issue_body = eg.codebox(f"Please enter your issue body. Markdown is supported.\n\nIssue type: {issue_type}\nIssue labels: " + str(issue_labels).replace("'", "").replace("[", "").replace("]", ""), "Issue")
-    os.popen('gh issue create --title "{issue_type}" --body "{issue_body}" --label "' + str(issue_labels).replace("'", "").replace("[", "").replace("]", "") + '"')
-
+    webbrowser.open(f"https://github.com/TheRealPenguin12/Editt/issues/new?title={issue_type}&body={issue_body}&labels=" + str(issue_labels).replace("'", "").replace("[", "").replace("]", "").replace(", ", ","))
 root = ThemedTk(theme="arc")
 
 
