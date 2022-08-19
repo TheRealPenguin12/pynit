@@ -10,6 +10,18 @@ import os
 import sys
 import linecache
 import subprocess
+import idlelib.colorizer as ic
+import idlelib.percolator as ip
+
+
+cdg = ic.ColorDelegator()
+
+cdg.tagdefs['COMMENT'] = {'foreground': '#FF0000', 'background': '#FFFFFF'}
+cdg.tagdefs['KEYWORD'] = {'foreground': 'purple', 'background': '#FFFFFF'}
+cdg.tagdefs['BUILTIN'] = {'foreground': '#7F7F00', 'background': '#FFFFFF'}
+cdg.tagdefs['STRING'] = {'foreground': '#7F3F00', 'background': '#FFFFFF'}
+cdg.tagdefs['DEFINITION'] = {'foreground': '#007F7F', 'background': '#FFFFFF'}
+
 
 filename = None
 file = None
@@ -71,7 +83,7 @@ def run_py():
         exec(editor_box.get("1.0", "end-1c"))
     except Exception as e:
         showwarning("Error", ReturnException(e))
-def run(event):
+def run(event=None):
     save()
     thread = t.Thread(target=lambda:run_py(), daemon=True)
     thread.start()
@@ -99,6 +111,8 @@ root.resizable(False, False)
 
 
 menubar = Menu(root)
+
+menubar.add_command(label="Run", command=run)
 
 file = Menu(menubar, tearoff=0)
 
@@ -128,10 +142,12 @@ l.pack(side=LEFT, anchor="nw")
 
 editor_box.pack(fill="x")
 
+ip.Percolator(editor_box).insertfilter(cdg)
+
 
 console_box = ScrolledText(root, height=15, state=DISABLED)
 
-console_box.pack(fill="x")
+console_box.pack(fill="x", anchor="e")
 
 class Log(object):
     def __init__(self):
