@@ -2,7 +2,6 @@ from tkinter import *
 from tkinter.ttk import *
 from tkinter.messagebox import *
 from tkinter.scrolledtext import *
-from ttkthemes import ThemedTk
 import easygui as eg
 import webbrowser
 import threading as t
@@ -12,15 +11,10 @@ import linecache
 import subprocess
 import idlelib.colorizer as ic
 import idlelib.percolator as ip
+import idlelib.autocomplete as iac
 
 
 cdg = ic.ColorDelegator()
-
-cdg.tagdefs['COMMENT'] = {'foreground': '#FF0000', 'background': '#FFFFFF'}
-cdg.tagdefs['KEYWORD'] = {'foreground': 'purple', 'background': '#FFFFFF'}
-cdg.tagdefs['BUILTIN'] = {'foreground': '#7F7F00', 'background': '#FFFFFF'}
-cdg.tagdefs['STRING'] = {'foreground': '#7F3F00', 'background': '#FFFFFF'}
-cdg.tagdefs['DEFINITION'] = {'foreground': '#007F7F', 'background': '#FFFFFF'}
 
 
 filename = None
@@ -78,15 +72,17 @@ def saveas():
         saveas()
 
 def run_py():
-    print(f"Editt: main.py: Run { filename.split('/')[len(filename.split('/')) - 1] }")
+    print(f"\nEditt: main.py: Run { filename.split('/')[len(filename.split('/')) - 1] }\n")
     try:
         exec(editor_box.get("1.0", "end-1c"))
     except Exception as e:
         showwarning("Error", ReturnException(e))
+    print(f"\nEditt: main.py: End of code\n")
 def run(event=None):
     save()
     thread = t.Thread(target=lambda:run_py(), daemon=True)
     thread.start()
+    
 
 def showongithub():
     webbrowser.open("https://github.com/TheRealPenguin12/Editt")
@@ -98,21 +94,62 @@ def reportissue():
     webbrowser.open(f"https://github.com/TheRealPenguin12/Editt/issues/new?title={issue_type}&body={issue_body}&labels=" + str(issue_labels).replace("'", "").replace("[", "").replace("]", "").replace(", ", ","))
 
 
-root = ThemedTk(theme="arc")
+root = Tk()
 
 
 root.geometry("800x700")
 root.title("Editt")
 style = Style(root)
-style.theme_use("default")
 root.resizable(False, False)
 
 
+editor_box = ScrolledText(root, height=30, wrap="word", undo=True)
 
+l = LineNumbers(root, editor_box, width=1, height=30)
+
+l.pack(side=LEFT, anchor="nw")
+
+editor_box.pack(fill="x")
+
+editor_box.focus_set()
+
+ip.Percolator(editor_box).insertfilter(cdg)
+
+acomplete = iac.AutoComplete()
+
+
+console_box = ScrolledText(root, height=15, state=DISABLED)
+
+console_box.pack(fill="x", anchor="e")
+
+class Log(object):
+    def __init__(self):
+        self.log = console_box
+
+    def write(self, msg):
+        self.log.config(state=NORMAL)
+        self.log.insert(END, msg)
+        self.log.config(state=DISABLED)
+
+
+editor_box.bind("<F5>", run)
+
+def OnArrow(event):
+    widget = event.widget
+    l.yview_moveto(widget.yview()[0])
+    l.mark_set("insert", widget.index("insert"))
+
+editor_box.bind("<KeyRelease-Up>", OnArrow)
+editor_box.bind("<KeyRelease-Down>", OnArrow)
+editor_box.bind("<KeyRelease-Up>", OnArrow)
+editor_box.bind("<KeyRelease-Down>", OnArrow)
+
+sys.stdout = Log()
 
 menubar = Menu(root)
 
 menubar.add_command(label="Run", command=run)
+menubar.add_command(label="Paste", command=lambda:editor_box.insert(END, root.clipboard_get()))
 
 file = Menu(menubar, tearoff=0)
 
@@ -132,36 +169,6 @@ _help.add_command(label="Report Issue", command=reportissue, underline=0)
 menubar.add_cascade(label="Help", menu=_help, underline=0) 
 
 root.config(menu=menubar)
-
-
-editor_box = ScrolledText(root, height=30, wrap="word", undo=True)
-
-l = LineNumbers(root, editor_box, width=1, height=30)
-
-l.pack(side=LEFT, anchor="nw")
-
-editor_box.pack(fill="x")
-
-ip.Percolator(editor_box).insertfilter(cdg)
-
-
-console_box = ScrolledText(root, height=15, state=DISABLED)
-
-console_box.pack(fill="x", anchor="e")
-
-class Log(object):
-    def __init__(self):
-        self.log = console_box
-
-    def write(self, msg):
-        self.log.config(state=NORMAL)
-        self.log.insert(END, msg)
-        self.log.config(state=DISABLED)
-
-
-editor_box.bind("<F5>", run)
-
-sys.stdout = Log()
 
 try:
     root.mainloop()
