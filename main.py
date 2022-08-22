@@ -170,6 +170,8 @@ menubar.add_cascade(label="Help", menu=_help, underline=0)
 
 root.config(menu=menubar)
 
+l.bindtags((str(l), str(root), "all"))
+
 try:
     root.mainloop()
 except:
