@@ -12,6 +12,7 @@ import subprocess
 import idlelib.colorizer as ic
 import idlelib.percolator as ip
 import idlelib.autocomplete as iac
+from tkterminal import Terminal
 
 
 cdg = ic.ColorDelegator()
@@ -72,12 +73,12 @@ def saveas():
         saveas()
 
 def run_py():
-    print(f"\nEditt: main.py: Run { filename.split('/')[len(filename.split('/')) - 1] }\n")
+    print(f"===================")
     try:
         exec(editor_box.get("1.0", "end-1c"))
     except Exception as e:
         showwarning("Error", ReturnException(e))
-    print(f"\nEditt: main.py: End of code\n")
+    print(f"===================")
 def run(event=None):
     save()
     thread = t.Thread(target=lambda:run_py(), daemon=True)
@@ -118,7 +119,20 @@ ip.Percolator(editor_box).insertfilter(cdg)
 acomplete = iac.AutoComplete()
 
 
-console_box = ScrolledText(root, height=15, state=DISABLED)
+tabs = Notebook(root)
+tabs.pack(pady=0, expand=True, fill="x", anchor="w")
+
+console = Frame(tabs)
+terminal = Frame(tabs)
+
+console.pack(fill='both', expand=True)
+terminal.pack(fill='both', expand=True)
+
+tabs.add(console, text='Console')
+tabs.add(terminal, text='Terminal')
+
+
+console_box = ScrolledText(console, height=15, state=DISABLED)
 
 console_box.pack(fill="x", anchor="e")
 
@@ -169,6 +183,10 @@ _help.add_command(label="Report Issue", command=reportissue, underline=0)
 menubar.add_cascade(label="Help", menu=_help, underline=0) 
 
 root.config(menu=menubar)
+
+terminal = Terminal(terminal, pady=5, padx=5, background="black", foreground="white", insertbackground="white")
+terminal.shell = True
+terminal.pack(expand=True, fill='both')
 
 l.bindtags((str(l), str(root), "all"))
 
