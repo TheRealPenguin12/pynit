@@ -13,6 +13,7 @@ import idlelib.colorizer as ic
 import idlelib.percolator as ip
 import idlelib.autocomplete as iac
 from tkterminal import Terminal
+import re
 
 
 cdg = ic.ColorDelegator()
@@ -21,21 +22,96 @@ cdg = ic.ColorDelegator()
 filename = None
 file = None
 
+class ColourSupportiveTextBox(Text):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        ansi_font_format = {1: 'bold', 3: 'italic', 4: 'underline', 9: 'overstrike'}
+        ansi_font_reset = {21: 'bold', 23: 'italic', 24: 'underline', 29: 'overstrike'}
+        self.tag_configure('bold', font=('', 9, 'bold'))
+        self.tag_configure('italic', font=('', 9, 'italic'))
+        self.tag_configure('underline', underline=True)
+        self.tag_configure('overstrike', overstrike=True)
+        ansi_color_fg = {39: 'foreground default'}
+        ansi_color_bg = {49: 'background default'}
+        self.tag_configure('foreground default', foreground=self["fg"])
+        self.tag_configure('background default', background=self["bg"])
+        ansi_colors_dark = ['black', 'red', 'green', 'yellow', 'royal blue', 'magenta', 'cyan', 'light gray']
+        ansi_colors_light = ['dark gray', 'tomato', 'light green', 'light goldenrod', 'light blue', 'pink', 'light cyan', 'white']
+        for i, (col_dark, col_light) in enumerate(zip(ansi_colors_dark, ansi_colors_light)):
+            ansi_color_fg[30 + i] = 'foreground ' + col_dark
+            ansi_color_fg[90 + i] = 'foreground ' + col_light
+            ansi_color_bg[40 + i] = 'background ' + col_dark
+            ansi_color_bg[100 + i] = 'background ' + col_light
+            self.tag_configure('foreground ' + col_dark, foreground=col_dark)
+            self.tag_configure('background ' + col_dark, background=col_dark)
+            self.tag_configure('foreground ' + col_light, foreground=col_light)
+            self.tag_configure('background ' + col_light, background=col_light)
+        self.ansi_regexp = re.compile(r"\x1b\[((\d+;)*\d+)m")
+    def insert_ansi(self, txt, index="insert"):
+        first_line, first_char = map(int, str(self.index(index)).split("."))
+        if index == "end":
+            first_line -= 1
+
+        lines = txt.splitlines()
+        if not lines:
+            return
+        self.insert(index, self.ansi_regexp.sub('', txt))
+        opened_tags = {}
+    def apply_formatting(self, code, code_index):
+        if code == 0:
+            for tag, start in opened_tags.items():
+                self.tag_add(tag, start, code_index)
+            opened_tags.clear()
+        elif code in ansi_font_format:
+            tag = ansi_font_format[code]
+            opened_tags[tag] = code_index
+        elif code in ansi_font_reset:
+            tag = ansi_font_reset[code]
+            if tag in opened_tags:
+                self.tag_add(tag, opened_tags[tag], code_index)
+                opened_tags.remove(tag)
+        elif code in ansi_color_fg:
+            for tag in tuple(opened_tags):
+                if tag.startswith('foreground'):
+                    self.tag_add(tag, opened_tags[tag], code_index)
+                    opened_tags.remove(tag)
+            opened_tags[ansi_color_fg[code]] = code_index
+        elif code in ansi_color_bg:
+            for tag in tuple(opened_tags):
+                if tag.startswith('background'):
+                    self.tag_add(tag, opened_tags[tag], code_index)
+                    opened_tags.remove(tag)
+            opened_tags[ansi_color_bg[code]] = code_index
+    def find_ansi(self, line_txt, line_nb, char_offset):
+        delta = -char_offset
+        for match in ansi_regexp.finditer(line_txt):
+            codes = [int(c) for c in match.groups()[0].split(';')]
+            start, end = match.span()
+            for code in codes:
+                apply_formatting(code, "{}.{}".format(line_nb, start - delta))
+            delta += end - start
+        find_ansi(lines[0], first_line, first_char)
+        for line_nb, line in enumerate(lines[1:], first_line + 1):
+            find_ansi(line, line_nb, 0)
+        for tag, start in opened_tags.items():
+            self.tag_add(tag, start, "end")
+
+
 class LineNumbers(Text):
-    def __init__(self, master, text_widget, **kwargs):
+    def __init__(self, master, self_widget, **kwargs):
         super().__init__(master, **kwargs)
  
-        self.text_widget = text_widget
-        self.text_widget.bind('<KeyRelease>', self.on_key_release)
-        self.text_widget.bind('<KeyPress>', self.on_key_release)
+        self.self_widget = self_widget
+        self.self_widget.bind('<KeyRelease>', self.on_key_release)
+        self.self_widget.bind('<KeyPress>', self.on_key_release)
  
         self.insert(1.0, '1')
         self.configure(state='disabled')
  
     def on_key_release(self, event=None):
-        p, q = self.text_widget.index("@0,0").split('.')
+        p, q = self.self_widget.index("@0,0").split('.')
         p = int(p)
-        final_index = str(self.text_widget.index(END))
+        final_index = str(self.self_widget.index(END))
         num_of_lines = final_index.split('.')[0]
         line_numbers_string = "\n".join(str(p + no) for no in range(int(num_of_lines) - 1))
         width = len(str(num_of_lines))
@@ -73,12 +149,10 @@ def saveas():
         saveas()
 
 def run_py():
-    print(f"===================")
     try:
         exec(editor_box.get("1.0", "end-1c"))
     except Exception as e:
         showwarning("Error", ReturnException(e))
-    print(f"===================")
 def run(event=None):
     save()
     thread = t.Thread(target=lambda:run_py(), daemon=True)
@@ -132,18 +206,93 @@ tabs.add(console, text='Console')
 tabs.add(terminal, text='Terminal')
 
 
-console_box = ScrolledText(console, height=15, state=DISABLED)
+console_box = Text(console, height=15, state=DISABLED)
 
 console_box.pack(fill="x", anchor="e")
+
+ansi_font_format = {1: 'bold', 3: 'italic', 4: 'underline', 9: 'overstrike'}
+ansi_font_reset = {21: 'bold', 23: 'italic', 24: 'underline', 29: 'overstrike'}
+console_box.tag_configure('bold', font=('', 9, 'bold'))
+console_box.tag_configure('italic', font=('', 9, 'italic'))
+console_box.tag_configure('underline', underline=True)
+console_box.tag_configure('overstrike', overstrike=True)
+ansi_color_fg = {39: 'foreground default'}
+ansi_color_bg = {49: 'background default'}
+console_box.tag_configure('foreground default', foreground=console_box["fg"])
+console_box.tag_configure('background default', background=console_box["bg"])
+ansi_colors_dark = ['black', 'red', 'green', 'yellow', 'royal blue', 'magenta', 'cyan', 'light gray']
+ansi_colors_light = ['dark gray', 'tomato', 'light green', 'light goldenrod', 'light blue', 'pink', 'light cyan', 'white']
+
+for i, (col_dark, col_light) in enumerate(zip(ansi_colors_dark, ansi_colors_light)):
+    ansi_color_fg[30 + i] = 'foreground ' + col_dark
+    ansi_color_fg[90 + i] = 'foreground ' + col_light
+    ansi_color_bg[40 + i] = 'background ' + col_dark
+    ansi_color_bg[100 + i] = 'background ' + col_light
+    console_box.tag_configure('foreground ' + col_dark, foreground=col_dark)
+    console_box.tag_configure('background ' + col_dark, background=col_dark)
+    console_box.tag_configure('foreground ' + col_light, foreground=col_light)
+    console_box.tag_configure('background ' + col_light, background=col_light)
+ansi_regexp = re.compile(r"\x1b\[((\d+;)*\d+)m")
+
+def insert_ansi(txt, index="insert"):
+    first_line, first_char = map(int, str(console_box.index(index)).split("."))
+    if index == "end":
+        first_line -= 1
+
+    lines = txt.splitlines()
+    if not lines:
+        return
+    console_box.insert(index, ansi_regexp.sub('', txt))
+    opened_tags = {}
+
+    def apply_formatting(code, code_index):
+        if code == 0:
+            for tag, start in opened_tags.items():
+                console_box.tag_add(tag, start, code_index)
+            opened_tags.clear()
+        elif code in ansi_font_format:
+            tag = ansi_font_format[code]
+            opened_tags[tag] = code_index
+        elif code in ansi_font_reset:
+            tag = ansi_font_reset[code]
+            if tag in opened_tags:
+                console_box.tag_add(tag, opened_tags[tag], code_index)
+                opened_tags.remove(tag)
+        elif code in ansi_color_fg:
+            for tag in tuple(opened_tags):
+                if tag.startswith('foreground'):
+                    console_box.tag_add(tag, opened_tags[tag], code_index)
+                    opened_tags.remove(tag)
+            opened_tags[ansi_color_fg[code]] = code_index
+        elif code in ansi_color_bg:
+            for tag in tuple(opened_tags):
+                if tag.startswith('background'):
+                    console_box.tag_add(tag, opened_tags[tag], code_index)
+                    opened_tags.remove(tag)
+            opened_tags[ansi_color_bg[code]] = code_index
+
+    def find_ansi(line_txt, line_nb, char_offset):
+        delta = -char_offset
+        for match in ansi_regexp.finditer(line_txt):
+            codes = [int(c) for c in match.groups()[0].split(';')]
+            start, end = match.span()
+            for code in codes:
+                apply_formatting(code, "{}.{}".format(line_nb, start - delta))
+            delta += end - start
+    find_ansi(lines[0], first_line, first_char)
+    for line_nb, line in enumerate(lines[1:], first_line + 1):
+        find_ansi(line, line_nb, 0)
+    for tag, start in opened_tags.items():
+        console_box.tag_add(tag, start, "end")
 
 class Log(object):
     def __init__(self):
         self.log = console_box
 
     def write(self, msg):
-        self.log.config(state=NORMAL)
-        self.log.insert(END, msg)
-        self.log.config(state=DISABLED)
+        console_box.config(state=NORMAL)
+        insert_ansi(msg, END)
+        console_box.config(state=DISABLED)
 
 
 editor_box.bind("<F5>", run)
