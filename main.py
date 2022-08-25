@@ -14,6 +14,8 @@ import idlelib.percolator as ip
 import idlelib.autocomplete as iac
 from tkterminal import Terminal
 import re
+from tkinter import font as tkfont
+import pyglet
 
 
 cdg = ic.ColorDelegator()
@@ -21,81 +23,6 @@ cdg = ic.ColorDelegator()
 
 filename = None
 file = None
-
-class ColourSupportiveTextBox(Text):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        ansi_font_format = {1: 'bold', 3: 'italic', 4: 'underline', 9: 'overstrike'}
-        ansi_font_reset = {21: 'bold', 23: 'italic', 24: 'underline', 29: 'overstrike'}
-        self.tag_configure('bold', font=('', 9, 'bold'))
-        self.tag_configure('italic', font=('', 9, 'italic'))
-        self.tag_configure('underline', underline=True)
-        self.tag_configure('overstrike', overstrike=True)
-        ansi_color_fg = {39: 'foreground default'}
-        ansi_color_bg = {49: 'background default'}
-        self.tag_configure('foreground default', foreground=self["fg"])
-        self.tag_configure('background default', background=self["bg"])
-        ansi_colors_dark = ['black', 'red', 'green', 'yellow', 'royal blue', 'magenta', 'cyan', 'light gray']
-        ansi_colors_light = ['dark gray', 'tomato', 'light green', 'light goldenrod', 'light blue', 'pink', 'light cyan', 'white']
-        for i, (col_dark, col_light) in enumerate(zip(ansi_colors_dark, ansi_colors_light)):
-            ansi_color_fg[30 + i] = 'foreground ' + col_dark
-            ansi_color_fg[90 + i] = 'foreground ' + col_light
-            ansi_color_bg[40 + i] = 'background ' + col_dark
-            ansi_color_bg[100 + i] = 'background ' + col_light
-            self.tag_configure('foreground ' + col_dark, foreground=col_dark)
-            self.tag_configure('background ' + col_dark, background=col_dark)
-            self.tag_configure('foreground ' + col_light, foreground=col_light)
-            self.tag_configure('background ' + col_light, background=col_light)
-        self.ansi_regexp = re.compile(r"\x1b\[((\d+;)*\d+)m")
-    def insert_ansi(self, txt, index="insert"):
-        first_line, first_char = map(int, str(self.index(index)).split("."))
-        if index == "end":
-            first_line -= 1
-
-        lines = txt.splitlines()
-        if not lines:
-            return
-        self.insert(index, self.ansi_regexp.sub('', txt))
-        opened_tags = {}
-    def apply_formatting(self, code, code_index):
-        if code == 0:
-            for tag, start in opened_tags.items():
-                self.tag_add(tag, start, code_index)
-            opened_tags.clear()
-        elif code in ansi_font_format:
-            tag = ansi_font_format[code]
-            opened_tags[tag] = code_index
-        elif code in ansi_font_reset:
-            tag = ansi_font_reset[code]
-            if tag in opened_tags:
-                self.tag_add(tag, opened_tags[tag], code_index)
-                opened_tags.remove(tag)
-        elif code in ansi_color_fg:
-            for tag in tuple(opened_tags):
-                if tag.startswith('foreground'):
-                    self.tag_add(tag, opened_tags[tag], code_index)
-                    opened_tags.remove(tag)
-            opened_tags[ansi_color_fg[code]] = code_index
-        elif code in ansi_color_bg:
-            for tag in tuple(opened_tags):
-                if tag.startswith('background'):
-                    self.tag_add(tag, opened_tags[tag], code_index)
-                    opened_tags.remove(tag)
-            opened_tags[ansi_color_bg[code]] = code_index
-    def find_ansi(self, line_txt, line_nb, char_offset):
-        delta = -char_offset
-        for match in ansi_regexp.finditer(line_txt):
-            codes = [int(c) for c in match.groups()[0].split(';')]
-            start, end = match.span()
-            for code in codes:
-                apply_formatting(code, "{}.{}".format(line_nb, start - delta))
-            delta += end - start
-        find_ansi(lines[0], first_line, first_char)
-        for line_nb, line in enumerate(lines[1:], first_line + 1):
-            find_ansi(line, line_nb, 0)
-        for tag, start in opened_tags.items():
-            self.tag_add(tag, start, "end")
-
 
 class LineNumbers(Text):
     def __init__(self, master, self_widget, **kwargs):
@@ -176,7 +103,6 @@ root.geometry("800x700")
 root.title("Editt")
 style = Style(root)
 root.resizable(False, False)
-
 
 editor_box = ScrolledText(root, height=30, wrap="word", undo=True)
 
@@ -314,22 +240,23 @@ menubar = Menu(root)
 menubar.add_command(label="Run", command=run)
 menubar.add_command(label="Paste", command=lambda:editor_box.insert(END, root.clipboard_get()))
 
+
 file = Menu(menubar, tearoff=0)
 
-file.add_command(label="New", underline=0)  
-file.add_command(label="Open", underline=0)  
-file.add_command(label="Save", underline=0, command=save)  
-file.add_command(label="Save as", underline=2, command=saveas)    
+file.add_command(label="New")  
+file.add_command(label="Open")  
+file.add_command(label="Save", command=save)  
+file.add_command(label="Save as", command=saveas)    
 file.add_separator()  
-file.add_command(label="Exit", command=root.destroy, underline=1)
+file.add_command(label="Exit", command=root.destroy)
 
-menubar.add_cascade(label="File", menu=file, underline=0)
+menubar.add_cascade(label="File", menu=file)
 
 _help = Menu(menubar, tearoff=0)  
-_help.add_command(label="About", command=lambda:showinfo(title="Editt", message="Version: 0.0.1\nCode Source: main.py"), underline=0)
-_help.add_command(label="Github", command=showongithub, underline=0)
-_help.add_command(label="Report Issue", command=reportissue, underline=0)
-menubar.add_cascade(label="Help", menu=_help, underline=0) 
+_help.add_command(label="About", command=lambda:showinfo(title="Editt", message="Version: 0.0.1\nCode Source: main.py"))
+_help.add_command(label="Github", command=showongithub)
+_help.add_command(label="Report Issue", command=reportissue)
+menubar.add_cascade(label="Help", menu=_help) 
 
 root.config(menu=menubar)
 
