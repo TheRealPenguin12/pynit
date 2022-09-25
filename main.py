@@ -48,17 +48,14 @@ class LineNumbers(Text):
         self.insert(1.0, line_numbers_string)
         self.configure(state='disabled')
 
-def ReturnException(e):
-    exc_type, exc_obj, tb = sys.exc_info()
-    f = tb.tb_frame
-    lineno = tb.tb_lineno
-    linecache.checkcache(filename)
-    line = linecache.getline(filename, lineno, f.f_globals)
-    print(f"Editt: { filename.split('/')[len(filename.split('/')) - 1] }: Error: {e}")
-    return '{}: {}'.format(e, filename)
+def openfile():
+    global file, filename
+    filename = eg.fileopenbox("Open your file", "Save as...", filetypes=[["*.py", "*.pyw", "*.pyc", "Python Files"], ["pyproject.toml", "setup.cfg", "setup.py", "Setup Files"]])
+    file = open(filename, "w")
+    editor_box.delete(1.0, END)
+    editor_box.insert(1.0, open(filename).read())
+    
 
-def reload():
-    pass
 def save():
     global file, filename
     if filename:
@@ -68,12 +65,12 @@ def save():
 
 def saveas():
     global file, filename
-    filename = eg.filesavebox("Save your file", "Save as...", default="untitled.py", filetypes=[["*.py", "*.pyw", "*.pyc", "Python Files"], ["pyproject.toml", "setup.cfg", "setup.py", "Setup Files"]])
+    filename = eg.filesavebox("Save your file", "Save as...", filetypes=[["*.py", "*.pyw", "*.pyc", "Python Files"], ["pyproject.toml", "setup.cfg", "setup.py", "Setup Files"]])
     try:
         file = open(filename, "w")
         file.write(editor_box.get("1.0", "end-1c"))
     except:
-        saveas()
+        pass
 
 def run_py():
     try:
@@ -87,7 +84,7 @@ def run(event=None):
     
 
 def showongithub():
-    webbrowser.open("https://github.com/TheRealPenguin12/Editt")
+    webbrowser.open("https://github.com/TheRealPenguin12/pynit")
 
 def reportissue():
     issue_type = eg.choicebox("Which best identifies your issue", "Issue", ["bug", "enhancement", "feature request"])
@@ -100,7 +97,7 @@ root = Tk()
 
 
 root.geometry("800x700")
-root.title("Editt")
+root.title("__pynit__")
 style = Style(root)
 root.resizable(False, False)
 
@@ -243,8 +240,8 @@ menubar.add_command(label="Paste", command=lambda:editor_box.insert(END, root.cl
 
 file = Menu(menubar, tearoff=0)
 
-file.add_command(label="New")  
-file.add_command(label="Open")  
+file.add_command(label="New", command=saveas)  
+file.add_command(label="Open", command=openfile)  
 file.add_command(label="Save", command=save)  
 file.add_command(label="Save as", command=saveas)    
 file.add_separator()  
@@ -253,7 +250,7 @@ file.add_command(label="Exit", command=root.destroy)
 menubar.add_cascade(label="File", menu=file)
 
 _help = Menu(menubar, tearoff=0)  
-_help.add_command(label="About", command=lambda:showinfo(title="Editt", message="Version: 0.0.1\nCode Source: main.py"))
+_help.add_command(label="About", command=lambda:showinfo(title="__pynit__", message="Version: 0.0.1\nCode Source: main.py"))
 _help.add_command(label="Github", command=showongithub)
 _help.add_command(label="Report Issue", command=reportissue)
 menubar.add_cascade(label="Help", menu=_help) 
